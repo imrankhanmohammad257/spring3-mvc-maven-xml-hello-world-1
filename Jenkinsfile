@@ -75,7 +75,7 @@ post {
         slackSend(
             channel: '#jenkins-integration',        // replace with your Slack channel
             color: 'good',                   // green for success
-            message: "✅ Pipeline '${env.JOB_NAME} [${env.BUILD_NUMBER}]' completed successfully! <${env.BUILD_URL}|Open Build>"
+            message: "✅ Pipeline '${env.JOB_NAME} [${env.BUILD_NUMBER}]' completed successfully! by IMRANK KHAN<${env.BUILD_URL}|Open Build>"
         )
         cleanWs()
     }
