@@ -93,7 +93,7 @@ pipeline {
             slackSend(
                 channel: SLACK_CHANNEL,
                 color: 'good',
-                message: "✅ Pipeline '${env.JOB_NAME} [${env.BUILD_NUMBER}]' completed successfully! <${env.BUILD_URL}|Open Build>"
+                message: "✅ Pipeline '${env.JOB_NAME} [${env.BUILD_NUMBER}]' completed successfully! By IMRAN KHAN <${env.BUILD_URL}|Open Build>"
             )
             cleanWs()
         }
