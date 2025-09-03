@@ -28,45 +28,46 @@ pipeline {
             }
         }
 
-        stage("Publish to Nexus") {
-            steps {
-                script {
-                    // read the POM
-                    def pom = readMavenPom file: 'pom.xml'
-                    def packaging = pom.packaging ?: 'jar'          // fallback if packaging is null
-                    def filesByGlob = findFiles(glob: "target/*.${packaging}")
+        stage('Publish to Nexus') {
+    steps {
+        script {
+            // Read Maven POM to get artifact coordinates
+            def pom = readMavenPom file: 'pom.xml'
+            def artifactVersion = pom.version
+            def groupId = pom.groupId
+            def artifactId = pom.artifactId
 
-                    if (filesByGlob.length == 0) {
-                        error("No artifact found in target/*.${packaging}")
-                    }
-
-                    def artifact = filesByGlob[0]
-                    echo "Found artifact: ${artifact.path} (size=${artifact.length}). groupId=${pom.groupId}, artifactId=${pom.artifactId}, pomVersion=${pom.version}"
-
-                    // choose version to upload: recommended to combine pom.version + build number
-                    def versionToUse = pom.version ? "${pom.version}-${env.BUILD_NUMBER}" : "${env.BUILD_NUMBER}"
-                    echo "Uploading version: ${versionToUse} to Nexus repo ${NEXUS_REPOSITORY}"
-
-                    nexusArtifactUploader(
-                        nexusVersion: "${NEXUS_VERSION}",
-                        protocol: "${NEXUS_PROTOCOL}",
-                        nexusUrl: "${NEXUS_URL}",
-                        groupId: pom.groupId,
-                        version: "${versionToUse}",
-                        repository: "${NEXUS_REPOSITORY}",
-                        credentialsId: "${NEXUS_CREDENTIAL_ID}",
-                        artifacts: [
-                            [artifactId: pom.artifactId, classifier: '', file: artifact.path, type: packaging],
-                            [artifactId: pom.artifactId, classifier: '', file: "pom.xml", type: "pom"]
-                        ]
-                    )
-
-                    // archive (optional) so the artifact is saved with the build
-                    archiveArtifacts artifacts: artifact.path, fingerprint: true
-                }
+            // Find the WAR file in target folder
+            def warFiles = findFiles(glob: "target/${artifactId}-${artifactVersion}.war")
+            if (warFiles.length == 0) {
+                error "WAR file not found: target/${artifactId}-${artifactVersion}.war"
             }
+            def warFile = warFiles[0].path
+
+            echo "Uploading artifact: ${warFile} (version: ${artifactVersion}) to Nexus"
+
+            // Nexus upload
+            nexusArtifactUploader(
+                artifacts: [[
+                    artifactId: artifactId,
+                    classifier: '',
+                    file: warFile,
+                    type: 'war'
+                ], [
+                    artifactId: artifactId,
+                    classifier: '',
+                    file: 'pom.xml',
+                    type: 'pom'
+                ]],
+                credentialsId: 'nexus-creds',  // your Jenkins credentials ID for Nexus
+                groupId: groupId,
+                version: artifactVersion,
+                repository: 'releases'  // Nexus repository name
+            )
         }
     }
+}
+
 
     post {
         success {
