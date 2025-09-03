@@ -2,16 +2,20 @@ pipeline {
     agent any
 
     tools {
-        // Make sure this name matches exactly what you set in Manage Jenkins -> Global Tool Configuration
         maven "Maven-3.8.4"
     }
 
     environment {
-        NEXUS_VERSION        = "nexus3"
-        NEXUS_PROTOCOL       = "http"
-        NEXUS_URL            = "54.163.17.174:8081"   // host:port (no protocol)
+        NEXUS_URL            = "54.163.17.174:8081"
         NEXUS_REPOSITORY     = "releases"
-        NEXUS_CREDENTIAL_ID  = "nexus-creds"        // must exist in Jenkins credentials
+        NEXUS_CREDENTIAL_ID  = "nexus-creds"
+
+        TOMCAT_USER          = "deployer"       // Tomcat manager username
+        TOMCAT_PASSWORD      = "deployer"   // Tomcat manager password
+        TOMCAT_HOST          = "3.82.42.125"       // Tomcat EC2 public IP
+        TOMCAT_PORT          = "8080"
+        SLACK_CHANNEL        = "#jenkins-integration"
+        SLACK_CREDENTIAL_ID  = "slack_notification"
     }
 
     stages {
@@ -23,21 +27,18 @@ pipeline {
 
         stage("Maven build") {
             steps {
-                // use mvn from the tools block; "-B" for batch mode
-                sh 'mvn -B -Dmaven.test.failure.ignore=true install'
+                sh 'mvn -B -Dmaven.test.failure.ignore=true clean install'
             }
         }
 
         stage('Publish to Nexus') {
             steps {
                 script {
-                    // Read Maven POM to get artifact coordinates
                     def pom = readMavenPom file: 'pom.xml'
                     def artifactVersion = pom.version
                     def groupId = pom.groupId
                     def artifactId = pom.artifactId
 
-                    // Find the WAR file in target folder
                     def warFiles = findFiles(glob: "target/${artifactId}-${artifactVersion}.war")
                     if (warFiles.length == 0) {
                         error "WAR file not found: target/${artifactId}-${artifactVersion}.war"
@@ -46,7 +47,6 @@ pipeline {
 
                     echo "Uploading artifact: ${warFile} (version: ${artifactVersion}) to Nexus"
 
-                    // Nexus upload
                     nexusArtifactUploader(
                         artifacts: [[
                             artifactId: artifactId,
@@ -59,40 +59,55 @@ pipeline {
                             file: 'pom.xml',
                             type: 'pom'
                         ]],
-                        credentialsId: 'nexus-creds',  // your Jenkins credentials ID for Nexus
+                        credentialsId: NEXUS_CREDENTIAL_ID,
                         groupId: groupId,
                         version: artifactVersion,
-                        repository: 'releases'  // Nexus repository name
+                        repository: NEXUS_REPOSITORY
                     )
                 }
             }
         }
-    } // <-- closing brace for stages
 
+        stage("Deploy to Tomcat") {
+            steps {
+                script {
+                    def pom = readMavenPom file: 'pom.xml'
+                    def artifactVersion = pom.version
+                    def artifactId = pom.artifactId
+                    def warFile = "target/${artifactId}-${artifactVersion}.war"
 
-post {
-    success {
-        slackSend(
-            channel: '#jenkins-integration',        // replace with your Slack channel
-            color: 'good',                   // green for success
-            message: "✅ Pipeline '${env.JOB_NAME} [${env.BUILD_NUMBER}]' completed successfully! by IMRANK KHAN<${env.BUILD_URL}|Open Build>"
-        )
-        cleanWs()
+                    echo "Deploying ${warFile} to Tomcat at ${TOMCAT_HOST}:${TOMCAT_PORT}"
+
+                    sh """
+                    curl -u ${TOMCAT_USER}:${TOMCAT_PASSWORD} \
+                         -T ${warFile} \
+                         "http://${TOMCAT_HOST}:${TOMCAT_PORT}/manager/text/deploy?path=/${artifactId}&update=true"
+                    """
+                }
+            }
+        }
     }
-    failure {
-        slackSend(
-            channel: '#your-channel',
-            color: 'danger',                 // red for failure
-            message: "❌ Pipeline '${env.JOB_NAME} [${env.BUILD_NUMBER}]' failed! <${env.BUILD_URL}|Open Build>"
-        )
-        cleanWs()
-    }
-    always {
-        echo "Cleaning workspace..."
-        cleanWs()
-    }
-}
 
-
-    
+    post {
+        success {
+            slackSend(
+                channel: SLACK_CHANNEL,
+                color: 'good',
+                message: "✅ Pipeline '${env.JOB_NAME} [${env.BUILD_NUMBER}]' completed successfully! <${env.BUILD_URL}|Open Build>"
+            )
+            cleanWs()
+        }
+        failure {
+            slackSend(
+                channel: SLACK_CHANNEL,
+                color: 'danger',
+                message: "❌ Pipeline '${env.JOB_NAME} [${env.BUILD_NUMBER}]' failed! <${env.BUILD_URL}|Open Build>"
+            )
+            cleanWs()
+        }
+        always {
+            echo "Cleaning workspace..."
+            cleanWs()
+        }
+    }
 }
