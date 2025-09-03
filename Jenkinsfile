@@ -69,15 +69,30 @@ pipeline {
         }
     } // <-- closing brace for stages
 
-    post {
-        success {
-            echo "Pipeline completed successfully."
-        }
-        failure {
-            echo "Pipeline failed."
-        }
-        always {
-            cleanWs()
-        }
+
+post {
+    success {
+        slackSend(
+            channel: '#jenkins-integration',        // replace with your Slack channel
+            color: 'good',                   // green for success
+            message: "✅ Pipeline '${env.JOB_NAME} [${env.BUILD_NUMBER}]' completed successfully! <${env.BUILD_URL}|Open Build>"
+        )
+        cleanWs()
     }
+    failure {
+        slackSend(
+            channel: '#your-channel',
+            color: 'danger',                 // red for failure
+            message: "❌ Pipeline '${env.JOB_NAME} [${env.BUILD_NUMBER}]' failed! <${env.BUILD_URL}|Open Build>"
+        )
+        cleanWs()
+    }
+    always {
+        echo "Cleaning workspace..."
+        cleanWs()
+    }
+}
+
+
+    
 }
