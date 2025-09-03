@@ -10,7 +10,7 @@ pipeline {
         NEXUS_VERSION        = "nexus3"
         NEXUS_PROTOCOL       = "http"
         NEXUS_URL            = "54.163.17.174:8081"   // host:port (no protocol)
-        NEXUS_REPOSITORY     = "devops"
+        NEXUS_REPOSITORY     = "releases"
         NEXUS_CREDENTIAL_ID  = "nexus-creds"        // must exist in Jenkins credentials
     }
 
@@ -29,45 +29,45 @@ pipeline {
         }
 
         stage('Publish to Nexus') {
-    steps {
-        script {
-            // Read Maven POM to get artifact coordinates
-            def pom = readMavenPom file: 'pom.xml'
-            def artifactVersion = pom.version
-            def groupId = pom.groupId
-            def artifactId = pom.artifactId
+            steps {
+                script {
+                    // Read Maven POM to get artifact coordinates
+                    def pom = readMavenPom file: 'pom.xml'
+                    def artifactVersion = pom.version
+                    def groupId = pom.groupId
+                    def artifactId = pom.artifactId
 
-            // Find the WAR file in target folder
-            def warFiles = findFiles(glob: "target/${artifactId}-${artifactVersion}.war")
-            if (warFiles.length == 0) {
-                error "WAR file not found: target/${artifactId}-${artifactVersion}.war"
+                    // Find the WAR file in target folder
+                    def warFiles = findFiles(glob: "target/${artifactId}-${artifactVersion}.war")
+                    if (warFiles.length == 0) {
+                        error "WAR file not found: target/${artifactId}-${artifactVersion}.war"
+                    }
+                    def warFile = warFiles[0].path
+
+                    echo "Uploading artifact: ${warFile} (version: ${artifactVersion}) to Nexus"
+
+                    // Nexus upload
+                    nexusArtifactUploader(
+                        artifacts: [[
+                            artifactId: artifactId,
+                            classifier: '',
+                            file: warFile,
+                            type: 'war'
+                        ], [
+                            artifactId: artifactId,
+                            classifier: '',
+                            file: 'pom.xml',
+                            type: 'pom'
+                        ]],
+                        credentialsId: 'nexus-creds',  // your Jenkins credentials ID for Nexus
+                        groupId: groupId,
+                        version: artifactVersion,
+                        repository: 'releases'  // Nexus repository name
+                    )
+                }
             }
-            def warFile = warFiles[0].path
-
-            echo "Uploading artifact: ${warFile} (version: ${artifactVersion}) to Nexus"
-
-            // Nexus upload
-            nexusArtifactUploader(
-                artifacts: [[
-                    artifactId: artifactId,
-                    classifier: '',
-                    file: warFile,
-                    type: 'war'
-                ], [
-                    artifactId: artifactId,
-                    classifier: '',
-                    file: 'pom.xml',
-                    type: 'pom'
-                ]],
-                credentialsId: 'nexus-creds',  // your Jenkins credentials ID for Nexus
-                groupId: groupId,
-                version: artifactVersion,
-                repository: 'releases'  // Nexus repository name
-            )
         }
-    }
-}
-
+    } // <-- closing brace for stages
 
     post {
         success {
