@@ -6,7 +6,7 @@ pipeline {
     }
 
     environment {
-        NEXUS_URL            = "54.163.17.174:8081"
+        NEXUS_URL            = "184.72.214.81:8081"
         NEXUS_REPOSITORY     = "releases"
         NEXUS_CREDENTIAL_ID  = "nexus-creds"
 
