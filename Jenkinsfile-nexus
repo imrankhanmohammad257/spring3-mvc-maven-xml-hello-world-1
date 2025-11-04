@@ -6,10 +6,14 @@ pipeline {
     }
 
     environment {
+        // Nexus repository details
+        NEXUS_VERSION        = "nexus3"
+        NEXUS_PROTOCOL       = "http"
         NEXUS_URL            = "184.72.214.81:8081"
         NEXUS_REPOSITORY     = "releases"
         NEXUS_CREDENTIAL_ID  = "nexus-creds"
 
+        // Optional Slack variables (disabled for now)
         SLACK_CHANNEL        = "#jenkins-integration"
         SLACK_CREDENTIAL_ID  = "slack_notification"
     }
@@ -21,7 +25,7 @@ pipeline {
             }
         }
 
-        stage("Maven build") {
+        stage("Maven Build") {
             steps {
                 sh 'mvn -B -Dmaven.test.failure.ignore=true clean install'
             }
@@ -30,42 +34,61 @@ pipeline {
         stage("Publish to Nexus") {
             steps {
                 script {
+                    // Read Maven POM details
                     def pom = readMavenPom file: 'pom.xml'
                     def artifactVersion = pom.version
                     def groupId = pom.groupId
                     def artifactId = pom.artifactId
 
+                    // Locate WAR file
                     def warFiles = findFiles(glob: "target/${artifactId}-${artifactVersion}.war")
                     if (warFiles.length == 0) {
-                        error "WAR file not found: target/${artifactId}-${artifactVersion}.war"
+                        error "❌ WAR file not found: target/${artifactId}-${artifactVersion}.war"
                     }
 
                     def warFile = warFiles[0].path
+                    echo "📦 Uploading artifact: ${warFile} to Nexus (${NEXUS_URL})"
 
-                    echo "Uploading artifact: ${warFile} to Nexus (${NEXUS_URL})"
-
+                    // Upload to Nexus Repository (Nexus 3)
                     nexusArtifactUploader(
-                        artifacts: [[
-                            artifactId: artifactId,
-                            classifier: '',
-                            file: warFile,
-                            type: 'war'
-                        ], [
-                            artifactId: artifactId,
-                            classifier: '',
-                            file: 'pom.xml',
-                            type: 'pom'
-                        ]],
-                        credentialsId: NEXUS_CREDENTIAL_ID,
+                        nexusVersion: NEXUS_VERSION,
+                        protocol: NEXUS_PROTOCOL,
+                        nexusUrl: NEXUS_URL,
                         groupId: groupId,
                         version: artifactVersion,
                         repository: NEXUS_REPOSITORY,
-                        nexusUrl: NEXUS_URL
+                        credentialsId: NEXUS_CREDENTIAL_ID,
+                        artifacts: [
+                            [artifactId: artifactId, classifier: '', file: warFile, type: 'war'],
+                            [artifactId: artifactId, classifier: '', file: 'pom.xml', type: 'pom']
+                        ]
                     )
                 }
             }
         }
+
+        stage("Verify Upload in Nexus") {
+            steps {
+                sh '''
+                echo "🔍 Verifying artifact upload in Nexus..."
+                curl -u admin:admin -s "http://184.72.214.81:8081/service/rest/v1/search/assets?repository=releases&group=com.ncodeit" | grep -q "ncodeit-hello-world" && echo "✅ Artifact found in Nexus!" || echo "❌ Artifact not found in Nexus!"
+                '''
+            }
+        }
     }
 
-    
+    post {
+        success {
+            echo "✅ Build and Nexus upload successful!"
+            cleanWs()
+        }
+        failure {
+            echo "❌ Pipeline failed. Check logs for details."
+            cleanWs()
+        }
+        always {
+            echo "🧹 Cleaning workspace..."
+            cleanWs()
+        }
+    }
 }
