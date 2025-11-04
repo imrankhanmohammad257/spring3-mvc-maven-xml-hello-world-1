@@ -34,14 +34,7 @@
 
    <build>
     <plugins>
-        <!-- Use a modern Maven WAR Plugin version compatible with Java 17 -->
-        <plugin>
-            <groupId>org.apache.maven.plugins</groupId>
-            <artifactId>maven-war-plugin</artifactId>
-            <version>3.3.2</version>
-        </plugin>
-
-        <!-- Compiler plugin should match your Java version -->
+        <!-- Use latest compiler plugin compatible with Java 17 -->
         <plugin>
             <groupId>org.apache.maven.plugins</groupId>
             <artifactId>maven-compiler-plugin</artifactId>
@@ -51,7 +44,15 @@
                 <target>17</target>
             </configuration>
         </plugin>
+
+        <!-- WAR Plugin for packaging -->
+        <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-war-plugin</artifactId>
+            <version>3.3.2</version>
+        </plugin>
     </plugins>
 </build>
+
 
 </project>
