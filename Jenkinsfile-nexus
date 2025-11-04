@@ -67,28 +67,5 @@ pipeline {
         }
     }
 
-    post {
-        success {
-            echo "✅ Build and Upload to Nexus Successful!"
-            slackSend(
-                channel: SLACK_CHANNEL,
-                color: 'good',
-                message: "✅ Pipeline '${env.JOB_NAME} [${env.BUILD_NUMBER}]' SUCCESS — Artifact uploaded to Nexus! <${env.BUILD_URL}|Open Build>"
-            )
-            cleanWs()
-        }
-        failure {
-            echo "❌ Pipeline Failed!"
-            slackSend(
-                channel: SLACK_CHANNEL,
-                color: 'danger',
-                message: "❌ Pipeline '${env.JOB_NAME} [${env.BUILD_NUMBER}]' FAILED! <${env.BUILD_URL}|Open Build>"
-            )
-            cleanWs()
-        }
-        always {
-            echo "🧹 Cleaning workspace..."
-            cleanWs()
-        }
-    }
+    
 }
